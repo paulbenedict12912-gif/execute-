@@ -19,29 +19,37 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install SDK platform + build-tools
-        run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
 
-      - name: Generate placeholder launcher icon
+      - name: Configure Android SDK
+        run: |
+          SDK=/usr/local/lib/android/sdk
+          echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+          echo "$SDK/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$SDK/platform-tools" >> $GITHUB_PATH
+          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Install SDK components
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Generate launcher icon
         run: |
           mkdir -p app/src/main/res/mipmap-hdpi
-          if [ ! -f app/src/main/res/mipmap-hdpi/ic_launcher.png ]; then
-            convert -size 192x192 xc:"#7C4DFF" \
-              -fill white -gravity center -pointsize 96 -annotate +0+0 "R" \
-              app/src/main/res/mipmap-hdpi/ic_launcher.png
-          fi
+          python3 -c "
+          import struct, zlib
+          def chunk(t, d):
+              c = t + d
+              return struct.pack('>I', len(d)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+          ihdr = struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0)
+          idat = zlib.compress(b'\x00\x7c\x4d\xff\xff')
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', idat) + chunk(b'IEND', b'')
+          open('app/src/main/res/mipmap-hdpi/ic_launcher.png', 'wb').write(png)
+          "
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
