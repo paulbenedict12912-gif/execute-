@@ -54,20 +54,34 @@ class MainActivity : AppCompatActivity() {
         val title = TextView(this).apply {
             text = "RblxExec"
             setTextColor(Color.parseColor("#B983FF"))
-            textSize = 30f
+            textSize = 32f
             setTypeface(null, Typeface.BOLD)
+        }
+
+        val subtitle = TextView(this).apply {
+            text = "floating script executor"
+            setTextColor(Color.parseColor("#6A6A7A"))
+            textSize = 12f
+            setPadding(0, 6, 0, 0)
         }
 
         statusText = TextView(this).apply {
             text = ""
             setTextColor(Color.parseColor("#9AA0A6"))
-            textSize = 14f
+            textSize = 13f
             gravity = Gravity.CENTER
             setPadding(0, 40, 0, 0)
         }
 
         launchBtn = Button(this).apply {
             text = "Launch floating menu"
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#7C4DFF"))
+                cornerRadius = 24f
+            }
+            setPadding(48, 32, 48, 32)
             setOnClickListener {
                 if (Settings.canDrawOverlays(this@MainActivity)) {
                     ContextCompat.startForegroundService(
@@ -82,9 +96,10 @@ class MainActivity : AppCompatActivity() {
         fun lp() = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = 32 }
+        ).apply { topMargin = 24 }
 
         root.addView(title)
+        root.addView(subtitle)
         root.addView(statusText, lp())
         root.addView(launchBtn, lp())
 
@@ -130,9 +145,9 @@ class FloatingExecService : Service() {
 
     private lateinit var attachBtn: Button
     private lateinit var execBtn: Button
-    private lateinit var clearBtn: Button
     private lateinit var scriptInput: EditText
     private lateinit var outputView: TextView
+    private lateinit var outputScroll: ScrollView
     private var attached = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -165,6 +180,8 @@ class FloatingExecService : Service() {
         startForeground(1001, notif)
     }
 
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).roundToInt()
+
     private fun baseParams(w: Int, h: Int): WindowManager.LayoutParams {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -176,12 +193,8 @@ class FloatingExecService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 80
-            y = 300
         }
     }
-
-    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).roundToInt()
 
     private fun buildCircle() {
         val circle = FrameLayout(this).apply {
@@ -194,7 +207,7 @@ class FloatingExecService : Service() {
         val label = TextView(this).apply {
             text = "R"
             setTextColor(Color.WHITE)
-            textSize = 22f
+            textSize = 24f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             layoutParams = FrameLayout.LayoutParams(
@@ -204,7 +217,7 @@ class FloatingExecService : Service() {
         }
         circle.addView(label)
         circleView = circle
-        attachDrag(circle, expandedProvider = { false })
+        attachDrag(circle, circle) { expandToPanel() }
     }
 
     private fun buildPanel() {
@@ -212,40 +225,64 @@ class FloatingExecService : Service() {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#F00B0B10"))
-                cornerRadius = dp(14).toFloat()
+                cornerRadius = dp(16).toFloat()
                 setStroke(dp(2), Color.parseColor("#7C4DFF"))
             }
-            setPadding(dp(10), dp(10), dp(10), dp(10))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
         }
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(6))
+        }
+
+        val dot = View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#00E676"))
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(8), dp(8)).apply {
+                rightMargin = dp(8)
+            }
         }
 
         val title = TextView(this).apply {
-            text = "  RblxExec"
+            text = "RblxExec"
             setTextColor(Color.parseColor("#B983FF"))
-            textSize = 15f
+            textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
-        val minimizeBtn = smallBtn("—")
-        val closeBtn = smallBtn("✕")
+        val minimizeBtn = headerBtn("—")
+        val closeBtn = headerBtn("✕")
 
         minimizeBtn.setOnClickListener { collapseToCircle() }
         closeBtn.setOnClickListener { stopSelf() }
 
+        header.addView(dot)
         header.addView(title)
         header.addView(minimizeBtn)
         header.addView(closeBtn)
 
+        val divider = View(this).apply {
+            setBackgroundColor(Color.parseColor("#2A2A3A"))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+            ).apply {
+                topMargin = dp(6)
+                bottomMargin = dp(8)
+            }
+        }
+
         val scriptLabel = TextView(this).apply {
-            text = "script"
+            text = "SCRIPT"
             setTextColor(Color.parseColor("#7C4DFF"))
-            textSize = 11f
-            setPadding(dp(4), dp(8), 0, dp(2))
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.15f
+            setPadding(dp(4), 0, 0, dp(4))
         }
 
         scriptInput = EditText(this).apply {
@@ -257,74 +294,78 @@ class FloatingExecService : Service() {
             inputType = InputType.TYPE_CLASS_TEXT or
                     InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                     InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            setBackgroundColor(Color.parseColor("#15151C"))
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            minLines = 6
-            maxLines = 10
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#15151C"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#25252F"))
+            }
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            gravity = Gravity.TOP or Gravity.START
             isSingleLine = false
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(120)
             )
         }
 
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, dp(6))
+            setPadding(0, dp(10), 0, dp(8))
         }
 
         attachBtn = actionBtn("Attach", "#7C4DFF")
         execBtn = actionBtn("Execute", "#00C853")
-        clearBtn = actionBtn("Clear", "#455A64")
 
         attachBtn.setOnClickListener { toggleAttach() }
         execBtn.setOnClickListener { executeScript() }
-        clearBtn.setOnClickListener {
-            scriptInput.setText("")
-            outputView.text = ""
-        }
 
-        btnRow.addView(attachBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
-        btnRow.addView(execBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
-        btnRow.addView(clearBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        btnRow.addView(attachBtn, LinearLayout.LayoutParams(0, dp(42), 1f).apply { rightMargin = dp(6) })
+        btnRow.addView(execBtn, LinearLayout.LayoutParams(0, dp(42), 1f))
 
         val outLabel = TextView(this).apply {
-            text = "output"
+            text = "OUTPUT"
             setTextColor(Color.parseColor("#7C4DFF"))
-            textSize = 11f
-            setPadding(dp(4), dp(4), 0, dp(2))
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.15f
+            setPadding(dp(4), 0, 0, dp(4))
         }
 
         outputView = TextView(this).apply {
             setTextColor(Color.parseColor("#9BE7A0"))
             textSize = 11f
             typeface = Typeface.MONOSPACE
-            setBackgroundColor(Color.parseColor("#101016"))
-            setPadding(dp(8), dp(6), dp(8), dp(6))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#101016"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#25252F"))
+            }
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             text = "> waiting for attach...\n"
         }
 
-        val outScroll = ScrollView(this).apply {
+        outputScroll = ScrollView(this).apply {
             addView(outputView)
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(90)
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(110)
             )
         }
 
         panel.addView(header)
+        panel.addView(divider)
         panel.addView(scriptLabel)
         panel.addView(scriptInput)
         panel.addView(btnRow)
         panel.addView(outLabel)
-        panel.addView(outScroll)
+        panel.addView(outputScroll)
 
         panelView = panel
-        attachDrag(header, expandedProvider = { true })
+        attachDrag(header, panel) { /* no-op tap */ }
     }
 
-    private fun smallBtn(label: String) = TextView(this).apply {
+    private fun headerBtn(label: String) = TextView(this).apply {
         text = label
         setTextColor(Color.parseColor("#B983FF"))
-        textSize = 18f
+        textSize = 16f
         gravity = Gravity.CENTER
         setPadding(dp(10), dp(2), dp(10), dp(2))
         layoutParams = LinearLayout.LayoutParams(
@@ -335,54 +376,59 @@ class FloatingExecService : Service() {
 
     private fun actionBtn(label: String, colorHex: String) = Button(this).apply {
         text = label
-        textSize = 12f
+        textSize = 13f
         setTextColor(Color.WHITE)
+        typeface = Typeface.DEFAULT_BOLD
         background = GradientDrawable().apply {
             setColor(Color.parseColor(colorHex))
-            cornerRadius = dp(8).toFloat()
+            cornerRadius = dp(10).toFloat()
         }
-        setPadding(dp(4), dp(6), dp(4), dp(6))
+        setPadding(dp(4), 0, dp(4), 0)
     }
 
     private fun showCircle() {
-        params = baseParams(dp(56), dp(56))
-        params.x = 80
-        params.y = 300
+        params = baseParams(dp(56), dp(56)).apply {
+            x = dp(80)
+            y = dp(300)
+        }
         windowManager.addView(circleView, params)
     }
 
     private fun expandToPanel() {
-        windowManager.removeView(circleView)
+        try { windowManager.removeView(circleView) } catch (_: Exception) {}
 
-        val w = dp(320)
-        val h = dp(420)
-        params = baseParams(w, h)
-        params.x = dp(40)
-        params.y = dp(200)
-        params.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-
+        params = baseParams(dp(320), dp(460)).apply {
+            x = dp(20)
+            y = dp(150)
+            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        }
         windowManager.addView(panelView, params)
     }
 
     private fun collapseToCircle() {
-        windowManager.removeView(panelView)
+        try { windowManager.removeView(panelView) } catch (_: Exception) {}
 
-        params = baseParams(dp(56), dp(56))
-        params.x = 80
-        params.y = 300
-
+        params = baseParams(dp(56), dp(56)).apply {
+            x = dp(80)
+            y = dp(300)
+        }
         windowManager.addView(circleView, params)
     }
 
-    private fun attachDrag(view: View, expandedProvider: () -> Boolean) {
+    /**
+     * handle = view that receives touch (header or the circle)
+     * container = view actually attached to WindowManager (updateViewLayout targets this)
+     * onTap = action fired when user taps without dragging
+     */
+    private fun attachDrag(handle: View, container: View, onTap: () -> Unit) {
         var initialX = 0
         var initialY = 0
         var touchX = 0f
         var touchY = 0f
         var moved = false
 
-        view.setOnTouchListener { _, event ->
-            when (event.action) {
+        handle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = params.x
                     initialY = params.y
@@ -394,14 +440,16 @@ class FloatingExecService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - touchX
                     val dy = event.rawY - touchY
-                    if (abs(dx) > 10 || abs(dy) > 10) moved = true
+                    if (abs(dx) > 12 || abs(dy) > 12) moved = true
                     params.x = initialX + dx.roundToInt()
                     params.y = initialY + dy.roundToInt()
-                    try { windowManager.updateViewLayout(view, params) } catch (_: Exception) {}
+                    try {
+                        windowManager.updateViewLayout(container, params)
+                    } catch (_: Exception) {}
                     true
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (!moved && !expandedProvider()) expandToPanel()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (!moved) onTap()
                     true
                 }
                 else -> false
@@ -415,17 +463,17 @@ class FloatingExecService : Service() {
             attachBtn.text = "Detach"
             attachBtn.background = GradientDrawable().apply {
                 setColor(Color.parseColor("#D50000"))
-                cornerRadius = dp(8).toFloat()
+                cornerRadius = dp(10).toFloat()
             }
-            appendOut("> attached to Roblox process")
-            appendOut("> lua state: ready")
-            appendOut("> awaiting script...")
+            appendOut("> attach requested")
+            appendOut("> native bridge not linked")
+            appendOut("> UI is ready — injection pending")
         } else {
             attached = false
             attachBtn.text = "Attach"
             attachBtn.background = GradientDrawable().apply {
                 setColor(Color.parseColor("#7C4DFF"))
-                cornerRadius = dp(8).toFloat()
+                cornerRadius = dp(10).toFloat()
             }
             appendOut("> detached")
         }
@@ -441,12 +489,16 @@ class FloatingExecService : Service() {
             appendOut("> not attached — press Attach first")
             return
         }
-        appendOut("> executing...")
+        appendOut("> queueing script (${code.length} chars)")
         appendOut("  ${code.lineSequence().first().take(60)}")
+        appendOut("> no native handler — script not sent")
     }
 
     private fun appendOut(line: String) {
         outputView.text = "${outputView.text}$line\n"
+        outputScroll.post {
+            outputScroll.fullScroll(View.FOCUS_DOWN)
+        }
     }
 
     override fun onDestroy() {
